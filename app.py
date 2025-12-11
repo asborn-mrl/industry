@@ -9,9 +9,6 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import warnings
-warnings.filterwarnings('ignore')
 
 # ==================== PAGE CONFIGURATION ====================
 st.set_page_config(
@@ -33,13 +30,6 @@ st.markdown("""
         background: linear-gradient(90deg, #E0F2FE 0%, #DBEAFE 100%);
         border-radius: 10px;
         margin-bottom: 1rem;
-    }
-    .metric-card {
-        background-color: #F8FAFC;
-        padding: 1.5rem;
-        border-radius: 10px;
-        border-left: 4px solid #3B82F6;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     .risk-low { 
         background-color: #D1FAE5; 
@@ -65,12 +55,6 @@ st.markdown("""
         border-radius: 10px;
         border: 2px solid #EF4444;
     }
-    .stButton>button {
-        width: 100%;
-        background-color: #3B82F6;
-        color: white;
-        font-weight: bold;
-    }
     .recommendation-box {
         background-color: #FEF3C7;
         padding: 1rem;
@@ -89,15 +73,6 @@ EQUIPMENT_CONDITION = ['Poor', 'Fair', 'Good', 'Excellent']
 PPE_COMPLIANCE = ['None', 'Partial', 'Full']
 FATIGUE_LEVEL = ['Low', 'Medium', 'High']
 TASK_COMPLEXITY = ['Low', 'Medium', 'High', 'Critical']
-
-# Model performance metrics
-MODEL_METRICS = {
-    'Accuracy': 0.651,
-    'Precision': 0.692,
-    'Recall': 0.852,
-    'F1-Score': 0.764,
-    'ROC-AUC': 0.616
-}
 
 # Feature importance data
 FEATURE_IMPORTANCE = pd.DataFrame({
@@ -122,22 +97,24 @@ def get_risk_level(probability):
         return "CRITICAL", "🔴", "#EF4444", "risk-critical"
 
 def calculate_risk_score(features):
-    """Calculate accident probability based on input features."""
+    """Calculate accident probability based on input features (simulating XGBoost model)."""
     risk_score = 0.3  # Base probability
     
     # Environmental factors (highest importance)
     risk_score += (features['noise_level'] - 50) / 150 * 0.15
-    risk_score += (features['temperature'] - 25) / 50 * 0.05 if features['temperature'] > 25 else 0
-    risk_score += (features['humidity'] - 50) / 100 * 0.05 if features['humidity'] > 50 else 0
+    if features['temperature'] > 25:
+        risk_score += (features['temperature'] - 25) / 50 * 0.05
+    if features['humidity'] > 50:
+        risk_score += (features['humidity'] - 50) / 100 * 0.05
     
     # Training recency
     risk_score += features['days_since_training'] / 730 * 0.12
     
-    # Experience (inverse relationship - less experience = higher risk)
+    # Experience (inverse relationship)
     if features['experience_years'] < 5:
         risk_score += (5 - features['experience_years']) / 5 * 0.1
     elif features['experience_years'] > 15:
-        risk_score += 0.02  # Complacency factor for very experienced workers
+        risk_score += 0.02  # Complacency factor
     
     # Work conditions
     risk_score += features['hours_worked_today'] / 14 * 0.08
@@ -182,59 +159,48 @@ def calculate_risk_score(features):
     if features['shift'] == 'Night':
         risk_score += 0.05
     
-    # Clamp probability between 0.05 and 0.95
     return min(max(risk_score, 0.05), 0.95)
 
 def get_recommendations(probability, features):
     """Generate safety recommendations based on risk factors."""
     recommendations = []
     
-    # High probability recommendations
     if probability >= 0.75:
         recommendations.append("🚨 **CRITICAL**: Immediate work stoppage recommended for safety review")
         recommendations.append("👷 Assign dedicated supervisor for this worker")
     elif probability >= 0.5:
         recommendations.append("⚠️ **HIGH PRIORITY**: Schedule immediate supervisor consultation")
     
-    # Training recommendations
     if features['days_since_training'] > 365:
         recommendations.append("📚 **Training Overdue**: Schedule mandatory safety refresher training immediately")
     elif features['days_since_training'] > 180:
         recommendations.append("📖 Safety refresher training recommended within 30 days")
     
-    # Fatigue recommendations
     if features['hours_worked_today'] > 10:
         recommendations.append("⏰ **Fatigue Risk**: Mandatory 30-minute rest break required")
     if features['fatigue_level'] == 'High':
         recommendations.append("😴 Consider reassignment to low-risk tasks or early shift end")
     
-    # Environmental recommendations
     if features['noise_level'] > 85:
         recommendations.append("🔊 **Noise Hazard**: Verify hearing protection is being used correctly")
     if features['temperature'] > 35:
         recommendations.append("🌡️ **Heat Stress Risk**: Ensure adequate hydration and cooling breaks")
     
-    # Equipment recommendations
     if features['last_maintenance'] > 90:
         recommendations.append("🔧 Equipment maintenance is overdue - schedule inspection")
     if features['equipment_condition'] in ['Poor', 'Fair']:
         recommendations.append("⚙️ Consider equipment replacement or priority maintenance")
     
-    # PPE recommendations
     if features['ppe_compliance'] != 'Full':
         recommendations.append("🦺 **PPE Non-compliance**: Verify complete PPE usage before work continues")
     
-    # Historical incident recommendations
     if features['previous_incidents'] > 2:
         recommendations.append("📋 Worker has multiple previous incidents - conduct safety behavior review")
     if features['near_misses'] > 3:
         recommendations.append("⚡ High near-miss count - investigate root causes")
     
-    # Experience recommendations
     if features['experience_years'] < 2:
         recommendations.append("👶 New worker - assign experienced mentor for supervision")
-    elif features['experience_years'] > 15 and probability > 0.5:
-        recommendations.append("🎓 Experienced worker showing risk factors - assess for complacency")
     
     if not recommendations:
         recommendations.append("✅ All safety parameters within acceptable ranges - continue routine monitoring")
@@ -300,27 +266,26 @@ if page == "🏠 Home":
     
     st.markdown("---")
     
-    # Key metrics
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.markdown("#### 🎯 Accuracy")
-        st.markdown(f"<h2 style='color: #3B82F6;'>65.1%</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color: #3B82F6;'>65.1%</h2>", unsafe_allow_html=True)
         st.caption("Overall prediction accuracy")
     
     with col2:
         st.markdown("#### 🔍 Recall")
-        st.markdown(f"<h2 style='color: #10B981;'>85.2%</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color: #10B981;'>85.2%</h2>", unsafe_allow_html=True)
         st.caption("Accident detection rate")
     
     with col3:
         st.markdown("#### 📊 Features")
-        st.markdown(f"<h2 style='color: #8B5CF6;'>21</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color: #8B5CF6;'>21</h2>", unsafe_allow_html=True)
         st.caption("Input parameters analyzed")
     
     with col4:
         st.markdown("#### 🌲 Trees")
-        st.markdown(f"<h2 style='color: #F59E0B;'>200</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color: #F59E0B;'>200</h2>", unsafe_allow_html=True)
         st.caption("XGBoost estimators")
     
     st.markdown("---")
@@ -365,7 +330,6 @@ elif page == "📊 Single Prediction":
     
     st.markdown("---")
     
-    # Input form
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -404,9 +368,7 @@ elif page == "📊 Single Prediction":
     
     st.markdown("---")
     
-    # Predict button
     if st.button("🔮 Calculate Risk Assessment", type="primary", use_container_width=True):
-        # Collect features
         features = {
             'worker_age': worker_age,
             'experience_years': experience_years,
@@ -431,17 +393,14 @@ elif page == "📊 Single Prediction":
             'safety_training': safety_training
         }
         
-        # Calculate probability
         probability = calculate_risk_score(features)
         risk_level, emoji, color, css_class = get_risk_level(probability)
         
-        # Display results
         st.markdown("## 📊 Assessment Results")
         
         col1, col2 = st.columns([1, 1])
         
         with col1:
-            # Gauge chart
             fig = create_gauge_chart(probability, risk_level, color)
             st.plotly_chart(fig, use_container_width=True)
         
@@ -463,26 +422,10 @@ elif page == "📊 Single Prediction":
         
         st.markdown("---")
         
-        # Recommendations
         st.markdown("### 💡 Safety Recommendations")
         recommendations = get_recommendations(probability, features)
         for rec in recommendations:
             st.markdown(f"<div class='recommendation-box'>{rec}</div>", unsafe_allow_html=True)
-        
-        # Risk factors breakdown
-        st.markdown("### 📊 Key Risk Factors")
-        
-        risk_factors = pd.DataFrame({
-            'Factor': ['Noise Level', 'Training Recency', 'Hours Worked', 'PPE Status', 'Fatigue'],
-            'Status': [
-                '⚠️ High' if noise_level > 85 else '✅ Normal',
-                '⚠️ Overdue' if days_since_training > 180 else '✅ Current',
-                '⚠️ Extended' if hours_worked > 10 else '✅ Normal',
-                '⚠️ Non-compliant' if ppe_compliance != 'Full' else '✅ Compliant',
-                '⚠️ High' if fatigue_level == 'High' else '✅ Acceptable'
-            ]
-        })
-        st.table(risk_factors)
 
 # -------------------- BATCH ANALYSIS --------------------
 elif page == "📁 Batch Analysis":
@@ -502,14 +445,12 @@ elif page == "📁 Batch Analysis":
         
         if st.button("🔮 Run Batch Analysis", type="primary", use_container_width=True):
             with st.spinner("Analyzing workers..."):
-                # Simulate predictions
                 np.random.seed(42)
                 df['Accident_Probability'] = np.random.beta(2.5, 3, len(df))
                 df['Risk_Level'] = df['Accident_Probability'].apply(lambda x: get_risk_level(x)[0])
                 
                 st.markdown("### 📊 Analysis Results")
                 
-                # Summary metrics
                 risk_counts = df['Risk_Level'].value_counts()
                 
                 col1, col2, col3, col4 = st.columns(4)
@@ -522,7 +463,6 @@ elif page == "📁 Batch Analysis":
                 with col4:
                     st.metric("🔴 Critical Risk", risk_counts.get('CRITICAL', 0))
                 
-                # Distribution chart
                 fig = px.histogram(df, x='Accident_Probability', nbins=20,
                                   title='Distribution of Accident Probabilities',
                                   color_discrete_sequence=['#3B82F6'])
@@ -530,11 +470,6 @@ elif page == "📁 Batch Analysis":
                              annotation_text="Decision Threshold")
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # Results table
-                st.markdown("### 📋 Detailed Results")
-                st.dataframe(df[['Accident_Probability', 'Risk_Level']].head(20), use_container_width=True)
-                
-                # Download button
                 csv = df.to_csv(index=False)
                 st.download_button(
                     "📥 Download Complete Results",
@@ -558,15 +493,6 @@ elif page == "📁 Batch Analysis":
             'noise_level': [78, 85, 72]
         })
         st.dataframe(sample_df, use_container_width=True)
-        
-        # Download sample
-        sample_csv = sample_df.to_csv(index=False)
-        st.download_button(
-            "📥 Download Sample CSV",
-            sample_csv,
-            "sample_input.csv",
-            "text/csv"
-        )
 
 # -------------------- MODEL PERFORMANCE --------------------
 elif page == "📈 Model Performance":
@@ -574,7 +500,6 @@ elif page == "📈 Model Performance":
     
     st.markdown("---")
     
-    # Metrics
     col1, col2 = st.columns(2)
     
     with col1:
@@ -612,7 +537,6 @@ elif page == "📈 Model Performance":
     
     st.markdown("---")
     
-    # Feature Importance
     st.markdown("### 🏆 Top 10 Feature Importance")
     
     fig = px.bar(
@@ -626,18 +550,6 @@ elif page == "📈 Model Performance":
     )
     fig.update_layout(height=450, showlegend=False)
     st.plotly_chart(fig, use_container_width=True)
-    
-    st.markdown("---")
-    
-    # Cross-validation results
-    st.markdown("### 📉 5-Fold Cross-Validation Results")
-    
-    cv_df = pd.DataFrame({
-        'Fold': ['Fold 1', 'Fold 2', 'Fold 3', 'Fold 4', 'Fold 5', 'Mean ± Std'],
-        'AUC Score': [0.6512, 0.6234, 0.6445, 0.6187, 0.6427, '0.636 ± 0.018'],
-        'Accuracy': ['64.8%', '63.5%', '65.2%', '64.1%', '65.9%', '64.7% ± 0.9%']
-    })
-    st.table(cv_df)
 
 # -------------------- ABOUT --------------------
 elif page == "ℹ️ About":
@@ -667,9 +579,9 @@ elif page == "ℹ️ About":
     
     ### 📊 Model Performance Summary
     
-    - **High Recall (85.2%)**: The model effectively identifies potential accident scenarios
+    - **High Recall (85.2%)**: Effectively identifies potential accident scenarios
     - **Moderate Accuracy (65.1%)**: Balanced performance across all predictions
-    - **Safety-First Approach**: Designed to minimize false negatives (missed accidents)
+    - **Safety-First Approach**: Designed to minimize false negatives
     
     ---
     
@@ -680,21 +592,6 @@ elif page == "ℹ️ About":
     for Worker Accident Probability Prediction
     IEEE Conference 2024
     ```
-    
-    ---
-    
-    ### 🛠️ Technology Stack
-    
-    - **Frontend**: Streamlit
-    - **ML Framework**: XGBoost, Scikit-learn
-    - **Visualization**: Plotly, Matplotlib
-    - **Data Processing**: Pandas, NumPy
-    
-    ---
-    
-    ### 📧 Contact
-    
-    For questions or feedback, please refer to the IEEE paper or contact the authors.
     """)
 
 # ==================== FOOTER ====================
